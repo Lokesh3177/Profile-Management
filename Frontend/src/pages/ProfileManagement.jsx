@@ -15,6 +15,9 @@ function ProfileManagement({ setShowManagement, setCurrentProfile }) {
     const [loading, setLoading] = useState(false)
     const [message, setMessage] = useState('')
 
+    // IMPORTANT: Use Vercel Environment Variable for Backend URL
+    const API_BASE = import.meta.env.VITE_API_URL
+
     useEffect(() => {
         fetchProfiles()
     }, [])
@@ -22,7 +25,7 @@ function ProfileManagement({ setShowManagement, setCurrentProfile }) {
     const fetchProfiles = async () => {
         try {
             setLoading(true)
-            const response = await axios.get('/api/profiles')
+            const response = await axios.get(`${API_BASE}/api/profiles`)
             setProfiles(response.data.data || [])
         } catch (error) {
             console.error('Error fetching profiles:', error)
@@ -34,17 +37,11 @@ function ProfileManagement({ setShowManagement, setCurrentProfile }) {
 
     const handleInputChange = (e) => {
         const { name, value } = e.target
-        setFormData((prev) => ({
-            ...prev,
-            [name]: value,
-        }))
+        setFormData((prev) => ({ ...prev, [name]: value }))
     }
 
     const handleImageChange = (e) => {
-        setFormData((prev) => ({
-            ...prev,
-            profileImage: e.target.files[0],
-        }))
+        setFormData((prev) => ({ ...prev, profileImage: e.target.files[0] }))
     }
 
     const handleSubmit = async (e) => {
@@ -62,37 +59,26 @@ function ProfileManagement({ setShowManagement, setCurrentProfile }) {
             data.append('email', formData.email)
             data.append('phone', formData.phone)
             data.append('bio', formData.bio)
-            if (formData.profileImage) {
-                data.append('profileImage', formData.profileImage)
-            }
+            if (formData.profileImage) data.append('profileImage', formData.profileImage)
 
             if (editingId) {
-                // Update
-                await axios.put(`/api/profiles/${editingId}`, data, {
+                await axios.put(`${API_BASE}/api/profiles/${editingId}`, data, {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 })
                 setMessage('Profile updated successfully!')
                 setEditingId(null)
             } else {
-                // Create
-                await axios.post('/api/profiles', data, {
+                await axios.post(`${API_BASE}/api/profiles`, data, {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 })
                 setMessage('Profile created successfully!')
             }
 
-            setFormData({
-                name: '',
-                email: '',
-                phone: '',
-                bio: '',
-                profileImage: null,
-            })
-
+            setFormData({ name: '', email: '', phone: '', bio: '', profileImage: null })
             fetchProfiles()
-
             setTimeout(() => setMessage(''), 3000)
         } catch (error) {
+            console.error('Error saving profile:', error)
             setMessage(error.response?.data?.message || 'Error saving profile')
         } finally {
             setLoading(false)
@@ -112,30 +98,24 @@ function ProfileManagement({ setShowManagement, setCurrentProfile }) {
     }
 
     const handleDelete = async (id) => {
-        if (window.confirm('Are you sure you want to delete this profile?')) {
-            try {
-                setLoading(true)
-                await axios.delete(`/api/profiles/${id}`)
-                setMessage('Profile deleted successfully!')
-                fetchProfiles()
-                setTimeout(() => setMessage(''), 3000)
-            } catch (error) {
-                setMessage('Error deleting profile')
-            } finally {
-                setLoading(false)
-            }
+        if (!window.confirm('Are you sure you want to delete this profile?')) return
+        try {
+            setLoading(true)
+            await axios.delete(`${API_BASE}/api/profiles/${id}`)
+            setMessage('Profile deleted successfully!')
+            fetchProfiles()
+            setTimeout(() => setMessage(''), 3000)
+        } catch (error) {
+            console.error('Error deleting profile:', error)
+            setMessage('Error deleting profile')
+        } finally {
+            setLoading(false)
         }
     }
 
     const handleCancel = () => {
         setEditingId(null)
-        setFormData({
-            name: '',
-            email: '',
-            phone: '',
-            bio: '',
-            profileImage: null,
-        })
+        setFormData({ name: '', email: '', phone: '', bio: '', profileImage: null })
     }
 
     const handleSelectProfile = (profile) => {
@@ -154,9 +134,11 @@ function ProfileManagement({ setShowManagement, setCurrentProfile }) {
                     <div className="form-section">
                         <h2>{editingId ? 'Edit Profile' : 'Create New Profile'}</h2>
 
-                        {message && <div className={`message ${message.includes('Error') ? 'error' : 'success'}`}>
-                            {message}
-                        </div>}
+                        {message && (
+                            <div className={`message ${message.includes('Error') ? 'error' : 'success'}`}>
+                                {message}
+                            </div>
+                        )}
 
                         <form onSubmit={handleSubmit} className="profile-form">
                             <div className="form-group">
@@ -166,7 +148,6 @@ function ProfileManagement({ setShowManagement, setCurrentProfile }) {
                                     name="name"
                                     value={formData.name}
                                     onChange={handleInputChange}
-                                    placeholder="Enter your name"
                                     required
                                 />
                             </div>
@@ -178,7 +159,6 @@ function ProfileManagement({ setShowManagement, setCurrentProfile }) {
                                     name="email"
                                     value={formData.email}
                                     onChange={handleInputChange}
-                                    placeholder="Enter your email"
                                     required
                                     disabled={editingId ? true : false}
                                 />
@@ -191,7 +171,6 @@ function ProfileManagement({ setShowManagement, setCurrentProfile }) {
                                     name="phone"
                                     value={formData.phone}
                                     onChange={handleInputChange}
-                                    placeholder="Enter your phone number"
                                     required
                                 />
                             </div>
@@ -202,35 +181,22 @@ function ProfileManagement({ setShowManagement, setCurrentProfile }) {
                                     name="bio"
                                     value={formData.bio}
                                     onChange={handleInputChange}
-                                    placeholder="Enter a short bio (optional)"
                                     rows="4"
                                 />
                             </div>
 
                             <div className="form-group">
                                 <label>Profile Picture</label>
-                                <input
-                                    type="file"
-                                    name="profileImage"
-                                    onChange={handleImageChange}
-                                    accept="image/*"
-                                />
+                                <input type="file" name="profileImage" onChange={handleImageChange} />
                             </div>
 
                             <div className="form-actions">
-                                <button
-                                    type="submit"
-                                    className="submit-btn"
-                                    disabled={loading}
-                                >
-                                    {loading ? 'Saving...' : editingId ? '💾 Update Profile' : '➕ Create Profile'}
+                                <button type="submit" disabled={loading} className="submit-btn">
+                                    {loading ? 'Saving...' : editingId ? 'Update Profile' : 'Create Profile'}
                                 </button>
+
                                 {editingId && (
-                                    <button
-                                        type="button"
-                                        className="cancel-btn"
-                                        onClick={handleCancel}
-                                    >
+                                    <button type="button" className="cancel-btn" onClick={handleCancel}>
                                         Cancel
                                     </button>
                                 )}
@@ -240,7 +206,9 @@ function ProfileManagement({ setShowManagement, setCurrentProfile }) {
 
                     <div className="profiles-list-section">
                         <h2>All Profiles</h2>
+
                         {loading && <div className="loading">Loading...</div>}
+
                         {profiles.length > 0 ? (
                             <div className="profiles-list">
                                 {profiles.map((profile) => (
@@ -248,42 +216,34 @@ function ProfileManagement({ setShowManagement, setCurrentProfile }) {
                                         <div className="profile-item-info">
                                             <div className="profile-item-avatar">
                                                 {profile.profileImage ? (
-                                                    <img src={`http://localhost:3001${profile.profileImage}`} alt={profile.name} />
+                                                    <img src={`${API_BASE}${profile.profileImage}`} alt={profile.name} />
                                                 ) : (
-                                                    <span>{profile.name.charAt(0).toUpperCase()}</span>
+                                                    <span>{profile.name.charAt(0)}</span>
                                                 )}
                                             </div>
                                             <div className="profile-item-details">
                                                 <h4>{profile.name}</h4>
-                                                <p>📧 {profile.email}</p>
-                                                <p>📱 {profile.phone}</p>
+                                                <p>{profile.email}</p>
+                                                <p>{profile.phone}</p>
                                             </div>
                                         </div>
+
                                         <div className="profile-item-actions">
-                                            <button
-                                                className="select-profile-btn"
-                                                onClick={() => handleSelectProfile(profile)}
-                                            >
+                                            <button className="select-profile-btn" onClick={() => handleSelectProfile(profile)}>
                                                 Select
                                             </button>
-                                            <button
-                                                className="edit-btn"
-                                                onClick={() => handleEdit(profile)}
-                                            >
-                                                ✏️ Edit
+                                            <button className="edit-btn" onClick={() => handleEdit(profile)}>
+                                                Edit
                                             </button>
-                                            <button
-                                                className="delete-btn"
-                                                onClick={() => handleDelete(profile._id)}
-                                            >
-                                                🗑️ Delete
+                                            <button className="delete-btn" onClick={() => handleDelete(profile._id)}>
+                                                Delete
                                             </button>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <div className="empty-message">No profiles yet. Create one to get started!</div>
+                            <div>No profiles yet.</div>
                         )}
                     </div>
                 </div>
