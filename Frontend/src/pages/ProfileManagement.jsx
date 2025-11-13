@@ -1,255 +1,134 @@
-import React, { useState, useEffect } from 'react'
+
+import React, { useEffect, useState } from 'react'
 import axios from 'axios'
-import './ProfileManagement.css'
 
-function ProfileManagement({ setShowManagement, setCurrentProfile }) {
-    const [profiles, setProfiles] = useState([])
-    const [formData, setFormData] = useState({
-        name: '',
-        email: '',
-        phone: '',
-        bio: '',
-        profileImage: null,
-    })
-    const [editingId, setEditingId] = useState(null)
-    const [loading, setLoading] = useState(false)
-    const [message, setMessage] = useState('')
+export default function ProfileManagement({ setShowManagement, setCurrentProfile }) {
+  const [profiles, setProfiles] = useState([])
+  const [form, setForm] = useState({ name:'', email:'', phone:'', bio:'', profileImage: null })
+  const [editingId, setEditingId] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
-    // IMPORTANT: Use Vercel Environment Variable for Backend URL
-    const API_BASE = import.meta.env.VITE_API_URL
+  useEffect(() => { fetchProfiles() }, [])
 
-    useEffect(() => {
-        fetchProfiles()
-    }, [])
+  async function fetchProfiles(){
+    try{
+      setLoading(true)
+      const res = await axios.get(`${API_BASE}/api/profiles`)
+      setProfiles(res.data.data || [])
+    }catch(e){ console.error(e) }finally{ setLoading(false) }
+  }
 
-    const fetchProfiles = async () => {
-        try {
-            setLoading(true)
-            const response = await axios.get(`${API_BASE}/api/profiles`)
-            setProfiles(response.data.data || [])
-        } catch (error) {
-            console.error('Error fetching profiles:', error)
-            setMessage('Error fetching profiles')
-        } finally {
-            setLoading(false)
-        }
-    }
+  function onChange(e){
+    const { name, value, files } = e.target
+    if(name === 'profileImage') setForm(prev => ({ ...prev, profileImage: files[0] || null }))
+    else setForm(prev => ({ ...prev, [name]: value }))
+  }
 
-    const handleInputChange = (e) => {
-        const { name, value } = e.target
-        setFormData((prev) => ({ ...prev, [name]: value }))
-    }
+  async function onSubmit(e){
+    e.preventDefault()
+    if(!form.name || !form.email || !form.phone){ alert('Fill required fields'); return }
+    try{
+      setLoading(true)
+      const data = new FormData()
+      data.append('name', form.name)
+      data.append('email', form.email)
+      data.append('phone', form.phone)
+      data.append('bio', form.bio)
+      if(form.profileImage) data.append('profileImage', form.profileImage)
 
-    const handleImageChange = (e) => {
-        setFormData((prev) => ({ ...prev, profileImage: e.target.files[0] }))
-    }
+      if(editingId){
+        await axios.put(`${API_BASE}/api/profiles/${editingId}`, data, { headers: { 'Content-Type': 'multipart/form-data' } })
+      } else {
+        await axios.post(`${API_BASE}/api/profiles`, data, { headers: { 'Content-Type': 'multipart/form-data' } })
+      }
+      setForm({ name:'', email:'', phone:'', bio:'', profileImage: null })
+      setEditingId(null)
+      fetchProfiles()
+    }catch(e){
+      console.error(e)
+      alert(e.response?.data?.message || 'Error saving profile')
+    }finally{ setLoading(false) }
+  }
 
-    const handleSubmit = async (e) => {
-        e.preventDefault()
+  async function onDelete(id){
+    if(!confirm('Delete?')) return
+    try{ setLoading(true); await axios.delete(`${API_BASE}/api/profiles/${id}`); fetchProfiles() }catch(e){ console.error(e) }finally{ setLoading(false) }
+  }
 
-        if (!formData.name || !formData.email || !formData.phone) {
-            setMessage('Please fill in all required fields')
-            return
-        }
+  function onEdit(profile){
+    setForm({ name:profile.name, email:profile.email, phone:profile.phone, bio:profile.bio, profileImage: null })
+    setEditingId(profile._id)
+    window.scrollTo({top:0, behavior:'smooth'})
+  }
 
-        try {
-            setLoading(true)
-            const data = new FormData()
-            data.append('name', formData.name)
-            data.append('email', formData.email)
-            data.append('phone', formData.phone)
-            data.append('bio', formData.bio)
-            if (formData.profileImage) data.append('profileImage', formData.profileImage)
+  return (
+    <section className="py-8">
+      <div className="max-w-6xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white rounded-xl p-6 shadow-glass">
+          <button onClick={() => setShowManagement(false)} className="text-sm text-slate-500 mb-3">← Back to Dashboard</button>
+          <h3 className="text-2xl font-semibold mb-4">{editingId ? 'Edit Profile' : 'Create New Profile'}</h3>
 
-            if (editingId) {
-                await axios.put(`${API_BASE}/api/profiles/${editingId}`, data, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                })
-                setMessage('Profile updated successfully!')
-                setEditingId(null)
-            } else {
-                await axios.post(`${API_BASE}/api/profiles`, data, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                })
-                setMessage('Profile created successfully!')
-            }
-
-            setFormData({ name: '', email: '', phone: '', bio: '', profileImage: null })
-            fetchProfiles()
-            setTimeout(() => setMessage(''), 3000)
-        } catch (error) {
-            console.error('Error saving profile:', error)
-            setMessage(error.response?.data?.message || 'Error saving profile')
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    const handleEdit = (profile) => {
-        setFormData({
-            name: profile.name,
-            email: profile.email,
-            phone: profile.phone,
-            bio: profile.bio || '',
-            profileImage: null,
-        })
-        setEditingId(profile._id)
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
-
-    const handleDelete = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this profile?')) return
-        try {
-            setLoading(true)
-            await axios.delete(`${API_BASE}/api/profiles/${id}`)
-            setMessage('Profile deleted successfully!')
-            fetchProfiles()
-            setTimeout(() => setMessage(''), 3000)
-        } catch (error) {
-            console.error('Error deleting profile:', error)
-            setMessage('Error deleting profile')
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    const handleCancel = () => {
-        setEditingId(null)
-        setFormData({ name: '', email: '', phone: '', bio: '', profileImage: null })
-    }
-
-    const handleSelectProfile = (profile) => {
-        setCurrentProfile(profile)
-        setShowManagement(false)
-    }
-
-    return (
-        <div className="profile-management">
-            <div className="management-container">
-                <button className="back-btn" onClick={() => setShowManagement(false)}>
-                    ← Back to Dashboard
-                </button>
-
-                <div className="management-content">
-                    <div className="form-section">
-                        <h2>{editingId ? 'Edit Profile' : 'Create New Profile'}</h2>
-
-                        {message && (
-                            <div className={`message ${message.includes('Error') ? 'error' : 'success'}`}>
-                                {message}
-                            </div>
-                        )}
-
-                        <form onSubmit={handleSubmit} className="profile-form">
-                            <div className="form-group">
-                                <label>Profile Name *</label>
-                                <input
-                                    type="text"
-                                    name="name"
-                                    value={formData.name}
-                                    onChange={handleInputChange}
-                                    required
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label>Email *</label>
-                                <input
-                                    type="email"
-                                    name="email"
-                                    value={formData.email}
-                                    onChange={handleInputChange}
-                                    required
-                                    disabled={editingId ? true : false}
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label>Phone Number *</label>
-                                <input
-                                    type="tel"
-                                    name="phone"
-                                    value={formData.phone}
-                                    onChange={handleInputChange}
-                                    required
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label>Bio</label>
-                                <textarea
-                                    name="bio"
-                                    value={formData.bio}
-                                    onChange={handleInputChange}
-                                    rows="4"
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label>Profile Picture</label>
-                                <input type="file" name="profileImage" onChange={handleImageChange} />
-                            </div>
-
-                            <div className="form-actions">
-                                <button type="submit" disabled={loading} className="submit-btn">
-                                    {loading ? 'Saving...' : editingId ? 'Update Profile' : 'Create Profile'}
-                                </button>
-
-                                {editingId && (
-                                    <button type="button" className="cancel-btn" onClick={handleCancel}>
-                                        Cancel
-                                    </button>
-                                )}
-                            </div>
-                        </form>
-                    </div>
-
-                    <div className="profiles-list-section">
-                        <h2>All Profiles</h2>
-
-                        {loading && <div className="loading">Loading...</div>}
-
-                        {profiles.length > 0 ? (
-                            <div className="profiles-list">
-                                {profiles.map((profile) => (
-                                    <div key={profile._id} className="profile-item">
-                                        <div className="profile-item-info">
-                                            <div className="profile-item-avatar">
-                                                {profile.profileImage ? (
-                                                    <img src={`${API_BASE}${profile.profileImage}`} alt={profile.name} />
-                                                ) : (
-                                                    <span>{profile.name.charAt(0)}</span>
-                                                )}
-                                            </div>
-                                            <div className="profile-item-details">
-                                                <h4>{profile.name}</h4>
-                                                <p>{profile.email}</p>
-                                                <p>{profile.phone}</p>
-                                            </div>
-                                        </div>
-
-                                        <div className="profile-item-actions">
-                                            <button className="select-profile-btn" onClick={() => handleSelectProfile(profile)}>
-                                                Select
-                                            </button>
-                                            <button className="edit-btn" onClick={() => handleEdit(profile)}>
-                                                Edit
-                                            </button>
-                                            <button className="delete-btn" onClick={() => handleDelete(profile._id)}>
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div>No profiles yet.</div>
-                        )}
-                    </div>
-                </div>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium">Profile Name *</label>
+              <input name="name" value={form.name} onChange={onChange} className="mt-1 block w-full border rounded-md px-3 py-2" />
             </div>
-        </div>
-    )
-}
 
-export default ProfileManagement
+            <div>
+              <label className="block text-sm font-medium">Email *</label>
+              <input name="email" value={form.email} onChange={onChange} disabled={!!editingId} className="mt-1 block w-full border rounded-md px-3 py-2 bg-white/95"/>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium">Phone *</label>
+              <input name="phone" value={form.phone} onChange={onChange} className="mt-1 block w-full border rounded-md px-3 py-2" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium">Bio</label>
+              <textarea name="bio" value={form.bio} onChange={onChange} className="mt-1 block w-full border rounded-md px-3 py-2" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium">Profile Picture</label>
+              <input name="profileImage" type="file" accept="image/*" onChange={onChange} className="mt-1" />
+            </div>
+
+            <div className="flex gap-2">
+              <button disabled={loading} className="flex-1 bg-gradient-to-r from-brand-500 to-indigo-600 text-white py-2 rounded-md">{loading ? 'Saving...' : (editingId ? 'Update Profile' : 'Create Profile')}</button>
+              {editingId && <button type="button" onClick={() => { setEditingId(null); setForm({ name:'',email:'',phone:'',bio:'',profileImage:null }) }} className="px-4 py-2 border rounded-md">Cancel</button>}
+            </div>
+          </form>
+        </div>
+
+        <div className="bg-white rounded-xl p-6 shadow-glass">
+          <h3 className="text-2xl font-semibold mb-4">All Profiles</h3>
+
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+            {profiles.map(p => (
+              <div key={p._id} className="flex items-center gap-4 p-3 rounded-md border">
+                <div className="w-12 h-12 rounded-full overflow-hidden">
+                  {p.profileImage ? <img src={p.profileImage} alt={p.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center bg-slate-100 text-brand-500 font-bold">{p.name?.charAt(0)}</div>}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold truncate">{p.name}</div>
+                  <div className="text-sm text-brand-600 truncate">{p.email}</div>
+                  <div className="text-sm text-slate-500">{p.phone}</div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button onClick={() => { setCurrentProfile(p) }} className="px-3 py-1 rounded-md text-white bg-brand-500">Select</button>
+                  <button onClick={() => onEdit(p)} className="px-3 py-1 rounded-md bg-amber-400">Edit</button>
+                  <button onClick={() => onDelete(p._id)} className="px-3 py-1 rounded-md bg-red-500 text-white">Delete</button>
+                </div>
+              </div>
+            ))}
+            {profiles.length === 0 && <div className="text-slate-500">No profiles yet.</div>}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
